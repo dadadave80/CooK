@@ -4,6 +4,7 @@ pragma solidity ^0.8.26;
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ERC721Upgradeable} from "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import {ERC721ConsecutiveUpgradeable} from "./ERC721ConsecutiveUpgradeable.sol";
 import {
     ERC721EnumerableUpgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC721/extensions/ERC721EnumerableUpgradeable.sol";
@@ -18,6 +19,7 @@ import {IListing} from "./IListing.sol";
 
 contract Listing is
     ERC721EnumerableUpgradeable,
+    ERC721ConsecutiveUpgradeable,
     ERC721RoyaltyUpgradeable,
     PausableUpgradeable,
     OwnableUpgradeable,
@@ -103,11 +105,16 @@ contract Listing is
 
     /// @notice Mints a new token to a given address
     /// @param _to The address to receive the newly minted token
-    /// @return tokenId_ The ID of the newly minted token
-    function mint(address _to) external onlyOwner returns (uint256 tokenId_) {
-        // Increment tokenId based on total supply
-        tokenId_ = totalSupply() + 1;
-        _safeMint(_to, tokenId_);
+    function mint(address _to) external onlyOwner {
+        _safeMint(_to, _nextConsecutiveId());
+    }
+
+    /// @notice Mints a consecutive range of tokens to a given address
+    /// @param _to The address to receive the newly minted tokens
+    /// @param _amount The number of tokens to mint
+    /// @return The ID of the first token minted in the batch
+    function mintConsecutive(address _to, uint96 _amount) external onlyOwner returns (uint96) {
+        return _mintConsecutive(_to, _amount);
     }
 
     /// @notice Allows the owner to update the name of the NFT collection
@@ -198,7 +205,7 @@ contract Listing is
     /// @return The address of the token owner
     function _update(address _to, uint256 _tokenId, address _auth)
         internal
-        override(ERC721EnumerableUpgradeable, ERC721Upgradeable)
+        override(ERC721Upgradeable, ERC721EnumerableUpgradeable, ERC721ConsecutiveUpgradeable)
         whenNotPaused
         whenNotFrozen(_tokenId)
         returns (address)
@@ -214,6 +221,18 @@ contract Listing is
         override(ERC721Upgradeable, ERC721EnumerableUpgradeable)
     {
         super._increaseBalance(account, amount);
+    }
+
+    /// @dev Internal override for ownerOf
+    /// @param _tokenId The ID of the token
+    /// @return The address of the token owner
+    function _ownerOf(uint256 _tokenId)
+        internal
+        view
+        override(ERC721Upgradeable, ERC721ConsecutiveUpgradeable)
+        returns (address)
+    {
+        return super.ownerOf(_tokenId);
     }
 
     //*//////////////////////////////////////////////////////////////////////////
@@ -235,11 +254,16 @@ contract Listing is
 
     /// @notice Returns the metadata URI for the TicketNFT
     /// @dev This function returns the base URI set for the NFT collection, which is used
-    /// @param _tokenId The ID of the token
     /// @return The URI pointing to the token's metadata
     /// forge-lint: disable-next-line(mixed-case-function)
-    function tokenURI(uint256 _tokenId) public view override(ERC721Upgradeable, IListing) returns (string memory) {
-        _requireOwned(_tokenId);
+    function tokenURI(
+        uint256 /*_tokenId*/
+    )
+        public
+        view
+        override(ERC721Upgradeable, IListing)
+        returns (string memory)
+    {
         return _baseURI();
     }
 
@@ -257,7 +281,7 @@ contract Listing is
     function supportsInterface(bytes4 _interfaceId)
         public
         view
-        override(IERC165, ERC721RoyaltyUpgradeable, ERC721EnumerableUpgradeable)
+        override(IERC165, ERC721Upgradeable, ERC721RoyaltyUpgradeable, ERC721EnumerableUpgradeable)
         returns (bool)
     {
         return super.supportsInterface(_interfaceId);

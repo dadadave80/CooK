@@ -44,8 +44,13 @@ interface IListing is IERC721Metadata, IERC721Enumerable {
 
     /// @notice Mints a new token to a given address
     /// @param to The address to receive the newly minted token
-    /// @return tokenId The ID of the newly minted token
-    function mint(address to) external returns (uint256 tokenId);
+    function mint(address to) external;
+
+    /// @notice Mints a consecutive range of tokens to a given address
+    /// @param to The address to receive the newly minted tokens
+    /// @param amount The number of tokens to mint
+    /// @return The ID of the first token minted in the batch
+    function mintConsecutive(address to, uint96 amount) external returns (uint96);
 
     /// @notice Updates the name of the NFT collection
     /// @param name The name to assign
