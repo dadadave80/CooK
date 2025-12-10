@@ -42,10 +42,6 @@ interface IListing is IERC721Metadata, IERC721Enumerable {
         string calldata uri
     ) external;
 
-    /// @notice Mints a new token to a given address
-    /// @param to The address to receive the newly minted token
-    function mint(address to) external;
-
     /// @notice Mints a consecutive range of tokens to a given address
     /// @param to The address to receive the newly minted tokens
     /// @param amount The number of tokens to mint

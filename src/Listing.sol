@@ -103,12 +103,6 @@ contract Listing is
     //                             EXTERNAL FUNCTIONS
     //////////////////////////////////////////////////////////////////////////*//
 
-    /// @notice Mints a new token to a given address
-    /// @param _to The address to receive the newly minted token
-    function mint(address _to) external onlyOwner {
-        _safeMint(_to, _nextConsecutiveId());
-    }
-
     /// @notice Mints a consecutive range of tokens to a given address
     /// @param _to The address to receive the newly minted tokens
     /// @param _amount The number of tokens to mint
