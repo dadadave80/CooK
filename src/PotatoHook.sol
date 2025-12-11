@@ -5,10 +5,8 @@ pragma solidity ^0.8.26;
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
-import {console2} from "forge-std/console2.sol";
 // External: Uniswap
 import {IPoolManager, ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
-import {IERC20Minimal} from "@uniswap/v4-core/src/interfaces/external/IERC20Minimal.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
 import {BalanceDelta} from "@uniswap/v4-core/src/types/BalanceDelta.sol";
 import {
@@ -19,6 +17,8 @@ import {
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+// External: Solady
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 // Internal
 import {IMarket, ListingInfo} from "./interface/IMarket.sol";
 
@@ -58,6 +58,8 @@ import {IMarket, ListingInfo} from "./interface/IMarket.sol";
 
 contract PotatoHook is BaseHook {
     /*,AccessControl, Pausable*/
+    using SafeTransferLib for address;
+
     error PotatoHook__NoStableCoin();
     error PotatoHook__InvalidSwap();
     error PotatoHook__InvalidRecipient();
@@ -145,32 +147,11 @@ contract PotatoHook is BaseHook {
                     listing.price * data.quantity
                 );
 
-                // Directly pull funds from the user.
-                // Note: The user must have approved the hook to spend their USDC.
-                // IERC20Minimal(USDC).transferFrom(data.recipient, address(this), listing.price * data.quantity);
-
                 // Approve Market to spend USDC
-                IERC20Minimal(USDC).approve(address(MARKET), listing.price * data.quantity);
+                USDC.safeApprove(address(MARKET), listing.price * data.quantity);
 
                 // Buy the product
                 MARKET.purchase(data.listingId, data.quantity, data.recipient);
-
-                // If a user sends 150 USDC and the product costs 100 USDC
-                // We want to send the user 50 USDC worth of swap result (plus the product)
-                // We want to reduce the swap amount by 100 USDC.
-
-                // If amountSpecified is -150 (ExactInput), we want the swap to perceive it as -50.
-                // So we need a positive delta of +100 on the unspecified token? No.
-                // BeforeSwapDelta supports modifying the specified amount.
-                // If we return a delta, it is APPLIED to the swap.
-
-                // If we want to reduce the amount swaped by 100...
-                // existing amount = -150. new amount should be -50.
-                // We need to ADD 100 to the negative amount.
-                // So delta should be +100.
-
-                // However, the `toBeforeSwapDelta` helper usually takes (delta0, delta1).
-                // If we are modifying the specified amount (USDC), we should return a delta for it.
 
                 bool isToken0Stable = _isValidStableCoin(_poolKey.currency0);
                 // If stable is token0, and we are swapping exactInput (negative),
