@@ -27,6 +27,8 @@ interface IMarket {
     event ListingCalled(uint64 indexed listingId, bytes data);
     /// @dev Emitted when a listing price is updated
     event ListingPriceUpdated(uint64 indexed listingId, uint128 price);
+    /// @dev Emitted when a listing is purchased
+    event ListingPurchased(uint64 indexed listingId, address indexed buyer, uint96 quantity);
 
     /// @notice Creates a new listing
     /// @param price The price of the listing in USD
