@@ -46,6 +46,9 @@ import {IMarket, ListingInfo} from "./interface/IMarket.sol";
                                                        '-..___|_..=:` `-:=.._|___..-'
  */
 
+/// @title Market
+/// @author David Dada (https://github.com/dadadave80)
+/// @notice The market contract is the entry point for all market operations
 contract Market is AccessControl, IMarket {
     using LibClone for address;
     using EnumerableSet for EnumerableSet.UintSet;
