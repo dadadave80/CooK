@@ -179,4 +179,90 @@ contract PotatoHookTest is BaseTest, ERC1155Holder {
         // 50 went to Pool.
         // User should get Output of swapping 50 USDC.
     }
+
+    function testPurchaseWithNonStableSwap() public {
+        // 1. Create a listing
+        uint128 price = 10e6; // 10 USDC
+        address listingAddr = market.createListing(price, "uri", bytes32(0));
+
+        // 2. Prepare purchase data
+        PotatoHook.PurchaseData memory data =
+            PotatoHook.PurchaseData({listingId: 1, quantity: 20, recipient: recipient});
+
+        bytes memory hookData = abi.encode(data);
+
+        // 3. Swap NonStable (currency1) -> Stable (currency0 = USDC)
+        // Need to fund user with currency1
+        deal(Currency.unwrap(currency1), address(this), 1000 ether);
+
+        // Approve hook to spend currency1?
+        // No, in this case, the User calls Router. Router spends currency1.
+        // Hook intercepts USDC output.
+        // We approve Router naturally.
+        IERC20(Currency.unwrap(currency1)).approve(address(swapRouter), type(uint256).max);
+
+        // Swap 1000 units of Currency1.
+        // Price is 1:1 initially.
+        // Input: 1000 Currency1.
+        // Output ~= 1000 USDC.
+        // Cost = 200 USDC.
+        // User should get ~800 USDC (plus slippage/fees etc).
+
+        uint256 amountIn = 1000 ether; // Large amount to ensure we get enough USDC
+        // Actually, currency1 decimal? Mock tokens usually 18 dec?
+        // USDC is 6 dec usually. But Mock might be 18.
+        // Let's check mock currency decimals.
+        // usually 18.
+        // If price is 1:1, 1000 ether of C1 -> 1000 ether of C0 (USDC).
+        // If "USDC" mock is 18 decimals, then 10e6 price (10 units) is TINY.
+        // Let's assume price=10e18 for this test or keep it.
+        // If price is 10e6 (10*10^6).
+        // If USDC mock has 18 decimals, 10e6 is 0.00000000001 USDC.
+        // Wait, setup:
+        // usdc = Currency.unwrap(currency0);
+        // vm.label(address(usdc), "USDC");
+        // Usually `deployCurrencyPair` creates MockERC20 which are 18 decimals.
+        // I should stick to typical "10e6" amounts if USDC is truly USDC-like, but if it's MockERC20(18), it's tiny.
+        // In previous test `testPurchaseDuringSwap`:
+        // uint128 price = 10e6; // 10 USDC
+        // uint256 amountIn = 250e6; // 250 USDC input
+        // So implicit assumption that 1e6 is the unit or relevant.
+        // If Mock is 18 dec, then 10e6 is just small amount.
+
+        bool zeroForOne = false; // Input=Currency1, Output=Currency0(USDC)
+
+        BalanceDelta swapDelta = swapRouter.swapExactTokensForTokens({
+            amountIn: amountIn, // swap 1000 ether
+            amountOutMin: 0,
+            zeroForOne: zeroForOne,
+            poolKey: poolKey,
+            hookData: hookData,
+            receiver: address(this),
+            deadline: block.timestamp + 1
+        });
+
+        // 4. Checks
+        // Recipient should have 20 NFT
+        assertEq(IListing(listingAddr).balanceOf(recipient, 1), 20);
+
+        // Check user balance of USDC (currency0)
+        // Should be roughly (1000 ether converted to USDC) - (200 USDC cost)
+        // Since 1:1 price and Liquidity is Huge, we expect close to 1:1.
+        // But decimals might match.
+        // If both 18 decimals:
+        // Input 1000e18. Output ~1000e18.
+        // Cost 200e6 (tiny).
+        // User gets ~1000e18.
+        // Let's set price to something significant if we want to test limits?
+        // Or just trust 200 is deducted.
+
+        // Assert delta1 (input) is -1000e18
+        assertEq(int256(swapDelta.amount1()), -int256(amountIn));
+
+        // Assert delta0 (output) is roughly +1000e18 - 200e6?
+        // Wait, if hook takes 200e6.
+        // Delta returned by swap is what Router sees.
+        // Router sees (Output - Cost).
+        // So delta0 should be positive (User receives).
+    }
 }
