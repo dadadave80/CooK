@@ -51,6 +51,7 @@ import {IMarket, ListingInfo} from "./interface/IMarket.sol";
 /// @notice The market contract is the entry point for all market operations
 contract Market is AccessControl, IMarket {
     using LibClone for address;
+    using SafeTransferLib for address;
     using EnumerableSet for EnumerableSet.UintSet;
 
     //*//////////////////////////////////////////////////////////////////////////
@@ -128,10 +129,11 @@ contract Market is AccessControl, IMarket {
     function purchase(uint64 _listingId, uint96 _quantity, address _recipient) external {
         ListingInfo memory listingInfo = getListingInfo[_listingId];
 
-        IERC20Minimal(USDC).transferFrom(msg.sender, listingInfo.owner, listingInfo.price * _quantity);
+        USDC.safeTransferFrom(msg.sender, listingInfo.owner, listingInfo.price * _quantity);
 
-        try IListing(listingInfo.listing).mint(_recipient, _quantity) {}
-        catch {
+        try IListing(listingInfo.listing).mint(_recipient, _quantity) {
+            emit ListingPurchased(_listingId, msg.sender, _quantity);
+        } catch {
             revert Market__PurchaseFailed();
         }
     }
