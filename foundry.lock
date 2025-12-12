@@ -5,6 +5,18 @@
   "lib/hookmate": {
     "rev": "33408fbc15e083eb0bc4205fa37cb6ba0a926f44"
   },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "tag": {
+      "name": "v5.5.0",
+      "rev": "aa677e9d28ed78fc427ec47ba2baef2030c58e7c"
+    }
+  },
+  "lib/solady": {
+    "tag": {
+      "name": "v0.1.26",
+      "rev": "acd959aa4bd04720d640bf4e6a5c71037510cc4b"
+    }
+  },
   "lib/uniswap-hooks": {
     "rev": "e59fe72c110c3862eec9b332530dce49ca506bbb"
   }

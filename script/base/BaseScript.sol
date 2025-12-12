@@ -5,13 +5,13 @@ import {Script} from "forge-std/Script.sol";
 import {IERC20} from "forge-std/interfaces/IERC20.sol";
 
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
-import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IPositionManager} from "@uniswap/v4-periphery/src/interfaces/IPositionManager.sol";
 import {IPermit2} from "permit2/src/interfaces/IPermit2.sol";
 
-import {IUniswapV4Router04} from "hookmate/interfaces/router/IUniswapV4Router04.sol";
 import {AddressConstants} from "hookmate/constants/AddressConstants.sol";
+import {IUniswapV4Router04} from "hookmate/interfaces/router/IUniswapV4Router04.sol";
 
 import {Deployers} from "test/utils/Deployers.sol";
 

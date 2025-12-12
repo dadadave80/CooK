@@ -1,13 +1,15 @@
 [profile.default]
 bytecode_hash = "none"
-evm_version = "cancun"
 ffi = true
-fs_permissions = [{access = "read-write", path = ".forge-snapshots/"}]
+fs_permissions = [{ access = "read-write", path = ".forge-snapshots/" }]
 libs = ["lib"]
 out = "out"
-solc_version = "0.8.30"
 src = "src"
 via_ir = false
+dynamic_test_linking = true
+
+[fmt]
+sort_imports = true
 
 [lint]
 exclude_lints = ["screaming-snake-case-immutable", "screaming-snake-case-const"]

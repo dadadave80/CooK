@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
-import {CurrencyLibrary, Currency} from "@uniswap/v4-core/src/types/Currency.sol";
-import {LiquidityAmounts} from "@uniswap/v4-core/test/utils/LiquidityAmounts.sol";
 import {TickMath} from "@uniswap/v4-core/src/libraries/TickMath.sol";
+import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
+import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+import {LiquidityAmounts} from "@uniswap/v4-core/test/utils/LiquidityAmounts.sol";
 
 import {BaseScript} from "./base/BaseScript.sol";
 import {LiquidityHelpers} from "./base/LiquidityHelpers.sol";
@@ -31,11 +31,7 @@ contract CreatePoolAndAddLiquidityScript is BaseScript, LiquidityHelpers {
 
     function run() external {
         PoolKey memory poolKey = PoolKey({
-            currency0: currency0,
-            currency1: currency1,
-            fee: lpFee,
-            tickSpacing: tickSpacing,
-            hooks: hookContract
+            currency0: currency0, currency1: currency1, fee: lpFee, tickSpacing: tickSpacing, hooks: hookContract
         });
 
         bytes memory hookData = new bytes(0);
