@@ -62,8 +62,7 @@ import {IMarket, ListingInfo, PurchaseData} from "./interface/IMarket.sol";
 /// @title PotatoHook
 /// @author David Dada (https://github.com/dadadave80)
 /// @notice This hook allows users to purchase listings from the Market contract using USDC.
-contract PotatoHook is BaseHook {
-    /*,AccessControl, Pausable*/
+contract PotatoHook is BaseHook, AccessControl, Pausable {
     using SafeTransferLib for address;
 
     /// @dev Error messages
@@ -81,7 +80,17 @@ contract PotatoHook is BaseHook {
     constructor(IPoolManager _poolManager, IMarket _market, address _usdc) BaseHook(_poolManager) {
         MARKET = _market;
         USDC = _usdc;
-        // _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+    }
+
+    /// @notice Pauses the contract
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _pause();
+    }
+
+    /// @notice Unpauses the contract
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
     }
 
     /// @inheritdoc BaseHook
@@ -105,7 +114,13 @@ contract PotatoHook is BaseHook {
     }
 
     /// @inheritdoc BaseHook
-    function _beforeInitialize(address, PoolKey calldata _poolKey, uint160) internal view override returns (bytes4) {
+    function _beforeInitialize(address, PoolKey calldata _poolKey, uint160)
+        internal
+        view
+        override
+        whenNotPaused
+        returns (bytes4)
+    {
         if (!_isValidStableCoin(_poolKey.currency0) && !_isValidStableCoin(_poolKey.currency1)) {
             revert PotatoHook__NoStableCoin();
         }
@@ -116,6 +131,7 @@ contract PotatoHook is BaseHook {
     function _beforeSwap(address, PoolKey calldata _poolKey, SwapParams calldata _params, bytes calldata _hookData)
         internal
         override
+        whenNotPaused
         returns (bytes4, BeforeSwapDelta beforeSwapDelta_, uint24)
     {
         bool isStableSpecified = _amountSpecifiedIsStableCoin(_poolKey, _params);
