@@ -17,6 +17,11 @@ import {
 import {
     ERC1155URIStorageUpgradeable
 } from "@openzeppelin/contracts-upgradeable/token/ERC1155/extensions/ERC1155URIStorageUpgradeable.sol";
+
+// External: Fhenix
+import {FHE, euint256, inEuint256} from "@fhenixprotocol/contracts/FHE.sol";
+import {Permission, Permissioned} from "@fhenixprotocol/contracts/access/Permissioned.sol";
+
 // Internal
 import {IListing} from "./interface/IListing.sol";
 
