@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import {PathKey} from "hookmate/interfaces/router/PathKey.sol";
+
 /// @dev Struct for listing information
 struct ListingInfo {
     // The address of the listing
@@ -11,6 +13,20 @@ struct ListingInfo {
     uint128 price;
 }
 
+struct PurchaseData {
+    uint64 listingId;
+    uint96 quantity;
+    address recipient;
+}
+
+struct RouterData {
+    address router;
+    PathKey[] path;
+    uint256 amountIn;
+    uint256 amountOutMin;
+    uint256 deadline;
+}
+
 interface IMarket {
     /// @dev Error thrown when the listing creation fails
     error Market__CreateListingFailed();
@@ -18,8 +34,7 @@ interface IMarket {
     error Market__CallListingFailed(bytes);
     /// @dev Error thrown when the purchase fails
     error Market__PurchaseFailed();
-    /// @dev Error thrown when the purchase is not from the pool manager
-    error Market__PurchaseNotFromPoolManager();
+    error Market__InvalidQuantity();
 
     /// @dev Emitted when a listing is created
     event ListingCreated(address indexed listing, address indexed owner, uint64 indexed listingId, uint128 price);
@@ -52,6 +67,9 @@ interface IMarket {
     /// @param quantity The amount of tokens to purchase
     /// @param recipient The recipient of the tokens
     function purchase(uint64 listingId, uint96 quantity, address recipient) external;
+
+    function purchaseWithToken(PurchaseData calldata _purchaseData, RouterData calldata _routerData, address _token)
+        external;
 
     /// @notice Gets a listing
     /// @param listingId The ID of the listing to get

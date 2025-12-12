@@ -7,9 +7,13 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
 // External: Solady
 import {LibClone} from "solady/utils/LibClone.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+// External: Uniswap / Hookmate
+import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
+import {IUniswapV4Router04} from "hookmate/interfaces/router/IUniswapV4Router04.sol";
+import {PathKey} from "hookmate/interfaces/router/PathKey.sol";
 // Internal
 import {IListing, Listing} from "./Listing.sol";
-import {IMarket, ListingInfo} from "./interface/IMarket.sol";
+import {IMarket, ListingInfo, PurchaseData, RouterData} from "./interface/IMarket.sol";
 
 /*
                   Hey fren!
@@ -127,6 +131,7 @@ contract Market is AccessControl, IMarket {
     /// @param _quantity The amount of tokens to purchase
     /// @param _recipient The recipient of the tokens
     function purchase(uint64 _listingId, uint96 _quantity, address _recipient) external {
+        if (_quantity == 0) revert Market__InvalidQuantity();
         ListingInfo memory listingInfo = getListingInfo[_listingId];
 
         USDC.safeTransferFrom(msg.sender, listingInfo.owner, listingInfo.price * _quantity);
@@ -136,6 +141,55 @@ contract Market is AccessControl, IMarket {
         } catch {
             revert Market__PurchaseFailed();
         }
+    }
+
+    /// @notice Purchases a listing using a token swap via Uniswap V4 Router
+    /// @param _purchaseData The purchase data
+    /// @param _routerData The router data
+    /// @param _token The token to swap from
+    function purchaseWithToken(PurchaseData calldata _purchaseData, RouterData calldata _routerData, address _token)
+        external
+    {
+        if (_purchaseData.quantity == 0) revert Market__InvalidQuantity();
+
+        ListingInfo memory listingInfo = getListingInfo[_purchaseData.listingId];
+        if (listingInfo.listing == address(0)) revert Market__PurchaseFailed();
+
+        // 1. Pull tokens from user
+        _token.safeTransferFrom(msg.sender, address(this), _routerData.amountIn);
+
+        // 2. Approve Router
+        _token.safeApprove(_routerData.router, _routerData.amountIn);
+
+        // 3. Route Swap
+        _routeSwap(_purchaseData, _routerData, _token);
+
+        // 4. Reset Approval
+        _token.safeApprove(_routerData.router, 0);
+    }
+
+    function _routeSwap(PurchaseData calldata _purchaseData, RouterData calldata _routerData, address _token) internal {
+        bytes memory purchaseHookData = abi.encode(_purchaseData);
+
+        // 1. Construct PathKey[] memory with hookData in the last hop
+        uint256 pathLength = _routerData.path.length;
+        PathKey[] memory newPath = new PathKey[](pathLength);
+        for (uint256 i; i < pathLength; ++i) {
+            newPath[i] = _routerData.path[i];
+        }
+        // Set hookData for the final pool
+        newPath[pathLength - 1].hookData = purchaseHookData;
+
+        // 2. Execute Swap (Exact Input)
+        IUniswapV4Router04(payable(_routerData.router))
+            .swapExactTokensForTokens(
+                _routerData.amountIn,
+                _routerData.amountOutMin,
+                Currency.wrap(_token),
+                newPath,
+                _purchaseData.recipient,
+                _routerData.deadline
+            );
     }
 
     /// @notice Gets a listing
