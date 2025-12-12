@@ -6,6 +6,7 @@ libs = ["lib"]
 out = "out"
 src = "src"
 via_ir = false
+optimizer_runs = 44444444
 dynamic_test_linking = true
 
 [fmt]
@@ -14,3 +15,6 @@ sort_imports = true
 [lint]
 exclude_lints = ["screaming-snake-case-immutable", "screaming-snake-case-const"]
 lint_on_build = false
+
+[rpc_endpoints]
+unichain_sep = "${UNICHAIN_SEPOLIA_URL}"
