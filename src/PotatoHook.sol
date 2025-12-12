@@ -65,14 +65,25 @@ import {IMarket, ListingInfo, PurchaseData} from "./interface/IMarket.sol";
 contract PotatoHook is BaseHook, AccessControl, Pausable {
     using SafeTransferLib for address;
 
-    /// @dev Error messages
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                   ERRORS
+    //////////////////////////////////////////////////////////////////////////*//
+
     error PotatoHook__NoStableCoin();
     error PotatoHook__InvalidSwap();
     error PotatoHook__InvalidRecipient();
     error PotatoHook__InsufficientFunds();
 
+    //*//////////////////////////////////////////////////////////////////////////
+    //                              STATE VARIABLES
+    //////////////////////////////////////////////////////////////////////////*//
+
     IMarket public immutable MARKET;
     address public immutable USDC;
+
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                CONSTRUCTOR
+    //////////////////////////////////////////////////////////////////////////*//
 
     /// @param _poolManager The PoolManager contract
     /// @param _market The Market contract
@@ -83,6 +94,10 @@ contract PotatoHook is BaseHook, AccessControl, Pausable {
         _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
 
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                  PAUSABLE
+    //////////////////////////////////////////////////////////////////////////*//
+
     /// @notice Pauses the contract
     function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _pause();
@@ -92,6 +107,10 @@ contract PotatoHook is BaseHook, AccessControl, Pausable {
     function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
         _unpause();
     }
+
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                 HOOK LOGIC
+    //////////////////////////////////////////////////////////////////////////*//
 
     /// @inheritdoc BaseHook
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -254,6 +273,10 @@ contract PotatoHook is BaseHook, AccessControl, Pausable {
         return (BaseHook.afterSwap.selector, 0);
     }
 
+    //*//////////////////////////////////////////////////////////////////////////
+    //                              INTERNAL HELPERS
+    //////////////////////////////////////////////////////////////////////////*//
+
     /// @notice Helper function to determine if the output of the swap is a stable coin
     /// @param _poolKey The pool key
     /// @param _params The swap parameters
@@ -264,13 +287,6 @@ contract PotatoHook is BaseHook, AccessControl, Pausable {
         // If zeroForOne && ExactInput -> Output is 1. Check if 1 is Stable.
         Currency outputCurrency = _params.zeroForOne ? _poolKey.currency1 : _poolKey.currency0;
         return _isValidStableCoin(outputCurrency);
-    }
-
-    /// @notice Helper function to determine if a token is a stable coin
-    /// @param _token The token to check
-    /// @return True if the token is a stable coin
-    function _isValidStableCoin(Currency _token) internal view returns (bool) {
-        return Currency.unwrap(_token) == USDC;
     }
 
     /// @notice Helper function to determine if the amount specified is a stable coin
@@ -285,5 +301,12 @@ contract PotatoHook is BaseHook, AccessControl, Pausable {
         return _isValidStableCoin(
             _params.zeroForOne == _params.amountSpecified < 0 ? _poolKey.currency0 : _poolKey.currency1
         );
+    }
+
+    /// @notice Helper function to determine if a token is a stable coin
+    /// @param _token The token to check
+    /// @return True if the token is a stable coin
+    function _isValidStableCoin(Currency _token) internal view returns (bool) {
+        return Currency.unwrap(_token) == USDC;
     }
 }
