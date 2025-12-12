@@ -1,183 +1,264 @@
-# Uniswap v4 Hook Template
+# CooK: Uniswap V4 Hook for Atomic Market Purchases & Privacy
 
-**A template for writing Uniswap v4 Hooks 🦄**
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
+![Solidity](https://img.shields.io/badge/Solidity-0.8.26-blue)
+![Uniswap V4](https://img.shields.io/badge/Uniswap-V4-pink)
+![Fhenix](https://img.shields.io/badge/Fhenix-FHE-green)
 
-### Get Started
+**CooK** is a cutting-edge experiment in decentralized verified commerce, combining **Uniswap V4 Hooks** with **Fully Homomorphic Encryption (FHE)** to create a seamless, private, and atomic "Swap-to-Buy" marketplace experience.
 
-This template provides a starting point for writing Uniswap v4 Hooks, including a simple example and preconfigured test environment. Start by creating a new repository using the "Use this template" button at the top right of this page. Alternatively you can also click this link:
+---
 
-[![Use this Template](https://img.shields.io/badge/Use%20this%20Template-101010?style=for-the-badge&logo=github)](https://github.com/uniswapfoundation/v4-template/generate)
+## Contract Addresses
+- PotatoHook - https://sepolia.uniscan.xyz/address/0xe04441507ae1175cfbd8eba0a9389b0126ebe0cc#code
+- Market - https://sepolia.uniscan.xyz/address/0x95e8136a95eDD41EEE8d2b2Eb9FA4E6216927378#code
+- MockUSDC - https://sepolia.uniscan.xyz/address/0xE1B4C15D27Ae552FAF14A08C3b27DD46E780EA0F#code
 
-1. The example hook [Counter.sol](src/Counter.sol) demonstrates the `beforeSwap()` and `afterSwap()` hooks
-2. The test template [Counter.t.sol](test/Counter.t.sol) preconfigures the v4 pool manager, test tokens, and test liquidity.
+## 📖 Table of Contents
 
-<details>
-<summary>Updating to v4-template:latest</summary>
+- [Project Overview](#-project-overview)
+- [Features](#-features)
+- [Architecture](#-architecture)
+- [Technical Deep Dive](#-technical-deep-dive)
+- [Installation & Setup](#-installation--setup)
+- [Usage](#-usage)
+- [Deployment](#-deployment)
+- [Security Considerations](#-security-considerations)
+- [Testing](#-testing)
+- [Contributing](#-contributing)
+- [License](#-license)
 
-This template is actively maintained -- you can update the v4 dependencies, scripts, and helpers:
+---
+
+## 🔭 Project Overview
+
+### The Problem
+Traditional NFT marketplaces require users to:
+1. Hold the specific payment token (e.g., USDC).
+2. Approve the marketplace contract.
+3. Execute a separate transaction to purchase.
+
+This creates friction and exposes users to price volatility during the process. Furthermore, on-chain asset ownership is typically entirely public, revealing user purchasing habits and holdings to the world.
+
+### The Solution
+**CooK** leverages:
+1. **Uniswap V4 Hooks** (`PotatoHook.sol`): Enables users to purchase items *atomically* during a token swap. You can pay with *any* token (ETH, PEPE, WBTC), and the hook handles the conversion to USDC and settlement with the marketplace in a single transaction.
+2. **Fhenix FHE** (`Listing.sol`): Provides *encrypted* privacy for item ownership. Balances can be private, allowing users to hold digital goods without revealing their inventory to the public ledger.
+
+### Value Proposition
+*   **Atomic "Swap-to-Buy"**: Buy real-world assets or digital goods with any liquid token in one click.
+*   **Privacy by Default**: Option to wrap assets into a privacy-preserving FHE layer.
+*   **Modular Marketplace**: Independent listings created via a factory pattern.
+
+---
+
+## ✨ Features
+
+### 🥔 PotatoHook (Swap-to-Buy)
+A specialized Uniswap V4 Hook that intercepts swaps.
+*   **Integration**: Attaches to liquidity pools (e.g., ETH/USDC or PEPE/USDC).
+*   **Logic**: If checks pass, it re-routes the swap output (USDC) directly to the marketplace to fund a purchase, instead of sending it to the user.
+*   **Efficiency**: Gas-optimized settlement within the `afterSwap` lifecycle.
+
+### 🏪 Market Core
+A robust marketplace contract (`Market.sol`) allowing creators to sell goods.
+*   **Listing Factory**: Deploys minimal proxy clones for each new listing item to save gas.
+*   **USDC Standard**: All prices are denominated in USDC for stability.
+*   **Role-Based Access**: Fine-grained control over listing management.
+
+### 🕵️ FHE Privacy Listings
+Listings are ERC1155 tokens enhanced with Fhenix.
+*   **Encrypted Balances**: Users can `wrap` tokens to hide their balance.
+*   **Private Transfers**: Transfer assets without revealing amounts or receiver holdings (if fully private).
+*   **Selective Disclosure**: Users can view their own decrypted balances via permissioned view functions.
+
+---
+
+## 🏗 Architecture
+
+The system consists of three main layers: The **Liquidity Layer** (Uniswap V4), the **Orchestration Layer** (Hook & Market), and the **Asset Layer** (Listings).
+
+```mermaid
+flowchart LR
+    User[User] -- "1. Swap(ETH -> USDC) + HookData" --> Router[Uniswap Router]
+    
+    subgraph Uniswap V4
+        PM[PoolManager] -- "2. swap()" --> Hook[PotatoHook]
+    end
+    
+    subgraph CooK System
+        Hook -- "3. validate & pull USDC" --> Market[Market.sol]
+        Market -- "4. mint()" --> Listing[Listing.sol (ERC1155 + FHE)]
+    end
+    
+    Router --> PM
+    Hook -. "5. Purchase Settlement" .- PM
+```
+
+### Critical Flow: Swap-to-Buy
+1.  **Initiation**: User calls `router.swap()` with `hookData` encoding the `listingId` and `recipient`.
+2.  **Execution**: Uniswap executes the swap (e.g., ETH -> USDC).
+3.  **Interception**: `PotatoHook.afterSwap` detects the `hookData`.
+    *   Verifies the swap output (USDC) covers the item price.
+    *   Takes the USDC from the PoolManager.
+    *   Approves the Market contract.
+4.  **Purchase**: Hook calls `Market.purchase()`.
+5.  **Settlement**: Market transfers USDC to the Seller and mints the Item (NFT) to the User.
+6.  **Finalization**: The User receives the Item instead of the USDC they swapped for.
+
+---
+
+## 🔬 Technical Deep Dive
+
+### Smart Contracts
+
+#### `PotatoHook.sol`
+*   **Type**: `BaseHook`
+*   **Key Delta**: `beforeSwap` validates intents. `afterSwap` handles the movement of funds. It uses `poolManager.take()` to seize the USDC output of a swap before it reaches the user, effectively "spending" the swap result immediately.
+
+#### `Market.sol`
+*   **Pattern**: Clones Factory (Solady `LibClone`).
+*   **Functionality**:
+    *   `createListing`: Deploys a new `Listing` contract deterministically (CREATE2).
+    *   `purchase`: Handles the secure transfer of USDC from Buyer -> Seller and calls `mint` on the Listing.
+    *   `purchaseWithToken`: A helper to route swaps from the Market interface itself.
+
+#### `Listing.sol`
+*   **Standards**: ERC1155, AccessControl.
+*   **Privacy**: Uses `FHE.euint128` to store private balances.
+    *   `wrap(uint256 id, uint256 amount)`: Burn public token -> Mint private encrypted balance.
+    *   `unwrap(uint256 id, inEuint128 amount)`: Burn private encrypted balance -> Mint public token.
+
+### Security Assumptions
+*   **Stablecoin Validity**: The system enforces checks to ensure the pool involves a valid USDC token defined at deployment.
+*   **Price Solvency**: The Hook verifies `delta.amount` (swap output) >= `listing.price * quantity` before execution.
+*   **Access Control**: Listings are `Ownable` by the Market, ensuring only the Market can mint tokens upon confirmed payment.
+
+---
+
+## 🛠 Installation & Setup
+
+### Prerequisites
+*   [Foundry](https://getfoundry.sh/) (Forge, Cast, Anvil)
+*   [Git](https://git-scm.com/)
+
+### Setup
+1.  **Clone the Repository**
+    ```bash
+    git clone https://github.com/dadadave80/cook.git
+    cd cook
+    ```
+
+2.  **Install Dependencies**
+    ```bash
+    forge install
+    ```
+
+3.  **Build Project**
+    ```bash
+    forge build
+    ```
+
+---
+
+## 🚀 Usage
+
+### Local Development / Testing
+Run the test suite to verify core functionality:
 
 ```bash
-git remote add template https://github.com/uniswapfoundation/v4-template
-git fetch template
-git merge template/main <BRANCH> --allow-unrelated-histories
+# Run all tests
+forge test
+
+# Run specific integration test
+forge test --match-contract PotatoHookTest -vv
 ```
 
-</details>
+### Integration Example (Solidity)
+If integrating via a Router or smart contract:
 
-### Requirements
+```solidity
+// Prepare Hook Data
+PurchaseData memory data = PurchaseData({
+    listingId: 1,
+    quantity: 1,
+    recipient: msg.sender
+});
+bytes memory hookData = abi.encode(data);
 
-This template is designed to work with Foundry (stable). If you are using Foundry Nightly, you may encounter compatibility issues. You can update your Foundry installation to the latest stable version by running:
-
+// Execute Swap via Router
+// The router will pass hookData to the Pool/Hook
+router.swap(
+    key,
+    params,
+    testSettings,
+    hookData // <--- Triggers the Purchase
+);
 ```
-foundryup
-```
 
-To set up the project, run the following commands in your terminal to install dependencies and run the tests:
+---
 
-```
-forge install
+## 🚢 Deployment
+
+Deployment scripts are located in `script/`. You need to set up your environment variables first.
+
+1.  **Configure Environment**
+    Create a `.env` file:
+    ```ini
+    PRIVATE_KEY=0x...
+    RPC_URL=https://...
+    USDC_ADDRESS=0x...
+    ```
+
+2.  **Deploy System**
+    ```bash
+    forge script script/00_DeployHook.s.sol \
+        --rpc-url $RPC_URL \
+        --broadcast
+    ```
+
+This script will:
+*   Deploy the `Market` logic.
+*   Mine a salt for `PotatoHook` to ensure valid hook address flags.
+*   Deploy `PotatoHook` via `HookMiner`.
+
+---
+
+## 🛡 Security Considerations
+
+*   **Slippage**: Users must set appropriate slippage on their ETH->USDC swap. If the swap returns less USDC than the item price, the transaction REVERTS to protect the user from failed purchases.
+*   **Reentrancy**: The Market follows Checks-Effects-Interactions. `safeTransferFrom` (USDC) is called before the external call to `mint`.
+*   **Hook Malice**: The Hook has `ACCESS_CONTROL`. Only the admin can pause/unpause. Ensure you trust the hook deployer or that ownership is renounced.
+
+---
+
+## 🧪 Testing
+
+The codebase includes comprehensive Foundry tests covering:
+
+*   `Listing.t.sol`: FHE wrapping/unwrapping, access control.
+*   `Market.t.sol`: Listing creation, direct purchasing, routing.
+*   `PotatoHook.t.sol`: The complex swap-to-purchase flow, validating deltas and solvency checks.
+
+To run FHE tests, you may need a local Fhenix devnet or mock environment if strictly testing logic without encryption pre-compiles.
+
+```bash
 forge test
 ```
 
-### Local Development
+---
 
-Other than writing unit tests (recommended!), you can only deploy & test hooks on [anvil](https://book.getfoundry.sh/anvil/) locally. Scripts are available in the `script/` directory, which can be used to deploy hooks, create pools, provide liquidity and swap tokens. The scripts support both local `anvil` environment as well as running them directly on a production network.
+## 🤝 Contributing
 
-### Executing locally with using **Anvil**:
+Contributions are welcome!
 
-1. Start Anvil (or fork a specific chain using anvil):
+1.  One-line fixes: Submit a PR directly.
+2.  Major features: Open an ISSUE first to discuss the design.
+3.  Please ensure `forge test` passes before submitting.
+4.  Follow existing Solidity style guides (naming conventions, layout).
 
-```bash
-anvil
-```
+---
 
-or
+## 📄 License
 
-```bash
-anvil --fork-url <YOUR_RPC_URL>
-```
-
-2. Execute scripts:
-
-```bash
-forge script script/00_DeployHook.s.sol \
-    --rpc-url http://localhost:8545 \
-    --private-key <PRIVATE_KEY> \
-    --broadcast
-```
-
-### Using **RPC URLs** (actual transactions):
-
-:::info
-It is best to not store your private key even in .env or enter it directly in the command line. Instead use the `--account` flag to select your private key from your keystore.
-:::
-
-### Follow these steps if you have not stored your private key in the keystore:
-
-<details>
-
-1. Add your private key to the keystore:
-
-```bash
-cast wallet import <SET_A_NAME_FOR_KEY> --interactive
-```
-
-2. You will prompted to enter your private key and set a password, fill and press enter:
-
-```
-Enter private key: <YOUR_PRIVATE_KEY>
-Enter keystore password: <SET_NEW_PASSWORD>
-```
-
-You should see this:
-
-```
-`<YOUR_WALLET_PRIVATE_KEY_NAME>` keystore was saved successfully. Address: <YOUR_WALLET_ADDRESS>
-```
-
-::: warning
-Use `history -c` to clear your command history.
-:::
-
-</details>
-
-1. Execute scripts:
-
-```bash
-forge script script/00_DeployHook.s.sol \
-    --rpc-url <YOUR_RPC_URL> \
-    --account <YOUR_WALLET_PRIVATE_KEY_NAME> \
-    --sender <YOUR_WALLET_ADDRESS> \
-    --broadcast
-```
-
-You will prompted to enter your wallet password, fill and press enter:
-
-```
-Enter keystore password: <YOUR_PASSWORD>
-```
-
-### Key Modifications to note:
-
-1. Update the `token0` and `token1` addresses in the `BaseScript.sol` file to match the tokens you want to use in the network of your choice for sepolia and mainnet deployments.
-2. Update the `token0Amount` and `token1Amount` in the `CreatePoolAndAddLiquidity.s.sol` file to match the amount of tokens you want to provide liquidity with.
-3. Update the `token0Amount` and `token1Amount` in the `AddLiquidity.s.sol` file to match the amount of tokens you want to provide liquidity with.
-4. Update the `amountIn` and `amountOutMin` in the `Swap.s.sol` file to match the amount of tokens you want to swap.
-
-### Verifying the hook contract
-
-```bash
-forge verify-contract \
-  --rpc-url <URL> \
-  --chain <CHAIN_NAME_OR_ID> \
-  # Generally etherscan
-  --verifier <Verification_Provider> \
-  # Use --etherscan-api-key <ETHERSCAN_API_KEY> if you are using etherscan
-  --verifier-api-key <Verification_Provider_API_KEY> \
-  --constructor-args <ABI_ENCODED_ARGS> \
-  --num-of-optimizations <OPTIMIZER_RUNS> \
-  <Contract_Address> \
-  <path/to/Contract.sol:ContractName>
-  --watch
-```
-
-### Troubleshooting
-
-<details>
-
-#### Permission Denied
-
-When installing dependencies with `forge install`, Github may throw a `Permission Denied` error
-
-Typically caused by missing Github SSH keys, and can be resolved by following the steps [here](https://docs.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh)
-
-Or [adding the keys to your ssh-agent](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent#adding-your-ssh-key-to-the-ssh-agent), if you have already uploaded SSH keys
-
-#### Anvil fork test failures
-
-Some versions of Foundry may limit contract code size to ~25kb, which could prevent local tests to fail. You can resolve this by setting the `code-size-limit` flag
-
-```
-anvil --code-size-limit 40000
-```
-
-#### Hook deployment failures
-
-Hook deployment failures are caused by incorrect flags or incorrect salt mining
-
-1. Verify the flags are in agreement:
-   - `getHookCalls()` returns the correct flags
-   - `flags` provided to `HookMiner.find(...)`
-2. Verify salt mining is correct:
-   - In **forge test**: the _deployer_ for: `new Hook{salt: salt}(...)` and `HookMiner.find(deployer, ...)` are the same. This will be `address(this)`. If using `vm.prank`, the deployer will be the pranking address
-   - In **forge script**: the deployer must be the CREATE2 Proxy: `0x4e59b44847b379578588920cA78FbF26c0B4956C`
-     - If anvil does not have the CREATE2 deployer, your foundry may be out of date. You can update it with `foundryup`
-
-</details>
-
-### Additional Resources
-
-- [Uniswap v4 docs](https://docs.uniswap.org/contracts/v4/overview)
-- [v4-periphery](https://github.com/uniswap/v4-periphery)
-- [v4-core](https://github.com/uniswap/v4-core)
-- [v4-by-example](https://v4-by-example.org)
+This project is licensed under the **MIT License**.
