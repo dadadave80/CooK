@@ -1,7 +1,7 @@
 # CooK: Uniswap V4 Hook for Atomic Market Purchases & Privacy
 
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Solidity](https://img.shields.io/badge/Solidity-0.8.26-blue)
+![Solidity](https://img.shields.io/badge/Solidity-0.8.30-blue)
 ![Uniswap V4](https://img.shields.io/badge/Uniswap-V4-pink)
 ![Fhenix](https://img.shields.io/badge/Fhenix-FHE-green)
 
