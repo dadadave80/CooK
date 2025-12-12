@@ -20,7 +20,7 @@ import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
 // External: Solady
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 // Internal
-import {IMarket, ListingInfo} from "./interface/IMarket.sol";
+import {IMarket, ListingInfo, PurchaseData} from "./interface/IMarket.sol";
 
 /*
 ⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣀⡤⣔⢲⡒⢦⡙⡴⣒⣖⡠⣄⣀
@@ -69,14 +69,6 @@ contract PotatoHook is BaseHook {
     error PotatoHook__InvalidRecipient();
     error PotatoHook__InsufficientFunds();
 
-    /// @dev Purchase data struct
-    struct PurchaseData {
-        uint64 listingId;
-        uint96 quantity;
-        address recipient;
-    }
-
-    /// @dev Market and USDC addresses
     IMarket public immutable MARKET;
     address public immutable USDC;
 
