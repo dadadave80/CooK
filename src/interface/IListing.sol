@@ -1,17 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-only
 pragma solidity 0.8.30;
 
+import {inEuint128} from "@fhenixprotocol/contracts/FHE.sol";
+import {Permission} from "@fhenixprotocol/contracts/access/Permissioned.sol";
 import {IERC1155} from "@openzeppelin/contracts/token/ERC1155/IERC1155.sol";
 import {IERC1155MetadataURI} from "@openzeppelin/contracts/token/ERC1155/extensions/IERC1155MetadataURI.sol";
 
 interface IListing is IERC1155, IERC1155MetadataURI {
-    /// @dev Error thrown when the token is frozen
-    error Listing__TokenFrozen(uint256 tokenId);
-
-    /// @notice Emitted when a token is frozen
-    /// @param tokenId The ID of the token
-    /// @param status The new status of the token
-    event Frozen(uint256 indexed tokenId, bool status);
+    /// @dev Error thrown when the user does not have enough funds
+    error Listing__InsufficientFunds();
+    /// @dev Error thrown when the account is not the caller
+    error Listing__AccountMustBeCaller();
 
     /// @notice Initializes the contract
     /// @param owner The owner of the contract
@@ -38,4 +37,27 @@ interface IListing is IERC1155, IERC1155MetadataURI {
 
     /// @notice Unpauses token transfers
     function unpause() external;
+
+    /// @notice Converts public tokens to private encrypted tokens
+    /// @param id The ID of the token to wrap
+    /// @param amount The amount of tokens to wrap
+    function wrap(uint256 id, uint256 amount) external;
+
+    /// @notice Converts private encrypted tokens to public tokens
+    /// @param id The ID of the token to unwrap
+    /// @param amount The encrypted amount of tokens to unwrap
+    function unwrap(uint256 id, inEuint128 memory amount) external;
+
+    /// @notice Transfers encrypted tokens to another address
+    /// @param to The address to transfer to
+    /// @param id The ID of the token to transfer
+    /// @param amount The encrypted amount to transfer
+    function transferEncrypted(address to, uint256 id, inEuint128 memory amount) external;
+
+    /// @notice Returns the encrypted balance of a user (viewable only by user)
+    /// @param account The address of the user
+    /// @param id The ID of the token
+    /// @param auth The permission signature
+    /// @return The decrypted balance
+    function balanceOfEncrypted(address account, uint256 id, Permission memory auth) external view returns (uint256);
 }

@@ -4,13 +4,16 @@ pragma solidity ^0.8.26;
 // External: OpenZeppelin
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+
 // External: Solady
 import {LibClone} from "solady/utils/LibClone.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+
 // External: Uniswap / Hookmate
 import {Currency} from "@uniswap/v4-core/src/types/Currency.sol";
 import {IUniswapV4Router04} from "hookmate/interfaces/router/IUniswapV4Router04.sol";
 import {PathKey} from "hookmate/interfaces/router/PathKey.sol";
+
 // Internal
 import {IListing, Listing} from "./Listing.sol";
 import {IMarket, ListingInfo, PurchaseData, RouterData} from "./interface/IMarket.sol";

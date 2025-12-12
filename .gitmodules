@@ -13,3 +13,7 @@
 [submodule "lib/solady"]
 	path = lib/solady
 	url = https://github.com/Vectorized/solady
+[submodule "lib/fhenix-contracts"]
+	path = lib/fhenix-contracts
+	url = https://github.com/FhenixProtocol/fhenix-contracts
+	branch = main

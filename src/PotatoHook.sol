@@ -5,6 +5,7 @@ pragma solidity ^0.8.26;
 import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
 import {Pausable} from "@openzeppelin/contracts/utils/Pausable.sol";
 import {BaseHook} from "@openzeppelin/uniswap-hooks/src/base/BaseHook.sol";
+
 // External: Uniswap
 import {IPoolManager, ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
@@ -17,8 +18,10 @@ import {
 import {Currency, CurrencyLibrary} from "@uniswap/v4-core/src/types/Currency.sol";
 import {PoolId, PoolIdLibrary} from "@uniswap/v4-core/src/types/PoolId.sol";
 import {PoolKey} from "@uniswap/v4-core/src/types/PoolKey.sol";
+
 // External: Solady
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+
 // Internal
 import {IMarket, ListingInfo, PurchaseData} from "./interface/IMarket.sol";
 
@@ -59,18 +62,28 @@ import {IMarket, ListingInfo, PurchaseData} from "./interface/IMarket.sol";
 /// @title PotatoHook
 /// @author David Dada (https://github.com/dadadave80)
 /// @notice This hook allows users to purchase listings from the Market contract using USDC.
-contract PotatoHook is BaseHook {
-    /*,AccessControl, Pausable*/
+contract PotatoHook is BaseHook, AccessControl, Pausable {
     using SafeTransferLib for address;
 
-    /// @dev Error messages
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                   ERRORS
+    //////////////////////////////////////////////////////////////////////////*//
+
     error PotatoHook__NoStableCoin();
     error PotatoHook__InvalidSwap();
     error PotatoHook__InvalidRecipient();
     error PotatoHook__InsufficientFunds();
 
+    //*//////////////////////////////////////////////////////////////////////////
+    //                              STATE VARIABLES
+    //////////////////////////////////////////////////////////////////////////*//
+
     IMarket public immutable MARKET;
     address public immutable USDC;
+
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                CONSTRUCTOR
+    //////////////////////////////////////////////////////////////////////////*//
 
     /// @param _poolManager The PoolManager contract
     /// @param _market The Market contract
@@ -78,8 +91,26 @@ contract PotatoHook is BaseHook {
     constructor(IPoolManager _poolManager, IMarket _market, address _usdc) BaseHook(_poolManager) {
         MARKET = _market;
         USDC = _usdc;
-        // _grantRole(DEFAULT_ADMIN_ROLE, _admin);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
     }
+
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                  PAUSABLE
+    //////////////////////////////////////////////////////////////////////////*//
+
+    /// @notice Pauses the contract
+    function pause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _pause();
+    }
+
+    /// @notice Unpauses the contract
+    function unpause() external onlyRole(DEFAULT_ADMIN_ROLE) {
+        _unpause();
+    }
+
+    //*//////////////////////////////////////////////////////////////////////////
+    //                                 HOOK LOGIC
+    //////////////////////////////////////////////////////////////////////////*//
 
     /// @inheritdoc BaseHook
     function getHookPermissions() public pure override returns (Hooks.Permissions memory) {
@@ -102,7 +133,13 @@ contract PotatoHook is BaseHook {
     }
 
     /// @inheritdoc BaseHook
-    function _beforeInitialize(address, PoolKey calldata _poolKey, uint160) internal view override returns (bytes4) {
+    function _beforeInitialize(address, PoolKey calldata _poolKey, uint160)
+        internal
+        view
+        override
+        whenNotPaused
+        returns (bytes4)
+    {
         if (!_isValidStableCoin(_poolKey.currency0) && !_isValidStableCoin(_poolKey.currency1)) {
             revert PotatoHook__NoStableCoin();
         }
@@ -113,6 +150,7 @@ contract PotatoHook is BaseHook {
     function _beforeSwap(address, PoolKey calldata _poolKey, SwapParams calldata _params, bytes calldata _hookData)
         internal
         override
+        whenNotPaused
         returns (bytes4, BeforeSwapDelta beforeSwapDelta_, uint24)
     {
         bool isStableSpecified = _amountSpecifiedIsStableCoin(_poolKey, _params);
@@ -235,6 +273,10 @@ contract PotatoHook is BaseHook {
         return (BaseHook.afterSwap.selector, 0);
     }
 
+    //*//////////////////////////////////////////////////////////////////////////
+    //                              INTERNAL HELPERS
+    //////////////////////////////////////////////////////////////////////////*//
+
     /// @notice Helper function to determine if the output of the swap is a stable coin
     /// @param _poolKey The pool key
     /// @param _params The swap parameters
@@ -245,13 +287,6 @@ contract PotatoHook is BaseHook {
         // If zeroForOne && ExactInput -> Output is 1. Check if 1 is Stable.
         Currency outputCurrency = _params.zeroForOne ? _poolKey.currency1 : _poolKey.currency0;
         return _isValidStableCoin(outputCurrency);
-    }
-
-    /// @notice Helper function to determine if a token is a stable coin
-    /// @param _token The token to check
-    /// @return True if the token is a stable coin
-    function _isValidStableCoin(Currency _token) internal view returns (bool) {
-        return Currency.unwrap(_token) == USDC;
     }
 
     /// @notice Helper function to determine if the amount specified is a stable coin
@@ -266,5 +301,12 @@ contract PotatoHook is BaseHook {
         return _isValidStableCoin(
             _params.zeroForOne == _params.amountSpecified < 0 ? _poolKey.currency0 : _poolKey.currency1
         );
+    }
+
+    /// @notice Helper function to determine if a token is a stable coin
+    /// @param _token The token to check
+    /// @return True if the token is a stable coin
+    function _isValidStableCoin(Currency _token) internal view returns (bool) {
+        return Currency.unwrap(_token) == USDC;
     }
 }
