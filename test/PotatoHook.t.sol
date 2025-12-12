@@ -21,9 +21,11 @@ import {EasyPosm} from "./utils/libraries/EasyPosm.sol";
 import {Market} from "../src/Market.sol";
 import {PotatoHook} from "../src/PotatoHook.sol";
 import {IListing} from "../src/interface/IListing.sol";
+import {IMarket, PurchaseData, RouterData} from "../src/interface/IMarket.sol";
 import {BaseTest} from "./utils/BaseTest.sol";
 import {ERC1155Holder} from "@openzeppelin/contracts/token/ERC1155/utils/ERC1155Holder.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {PathKey} from "hookmate/interfaces/router/PathKey.sol";
 
 contract PotatoHookTest is BaseTest, ERC1155Holder {
     using EasyPosm for IPositionManager;
@@ -125,8 +127,7 @@ contract PotatoHookTest is BaseTest, ERC1155Holder {
         address listingAddr = market.createListing(price, "uri", bytes32(0));
 
         // 2. Prepare purchase data
-        PotatoHook.PurchaseData memory data =
-            PotatoHook.PurchaseData({listingId: 1, quantity: 20, recipient: recipient});
+        PurchaseData memory data = PurchaseData({listingId: 1, quantity: 20, recipient: recipient});
 
         bytes memory hookData = abi.encode(data);
 
@@ -134,12 +135,6 @@ contract PotatoHookTest is BaseTest, ERC1155Holder {
         uint256 amountIn = 250e6; // 250 USDC input
         bool zeroForOne = true; // selling USDC (token0) for token1
 
-        // Assuming token0 is USDC because we set usdc = currency0;
-
-        // Approve hook to spend USDC
-        // IERC20(usdc).approve(address(hook), type(uint256).max); // Calling from 'this'
-
-        // We need to fund the recipient because the hook pulls from data.recipient
         deal(usdc, recipient, 1000e6);
         vm.prank(recipient);
         IERC20(usdc).approve(address(hook), type(uint256).max);
@@ -155,29 +150,8 @@ contract PotatoHookTest is BaseTest, ERC1155Holder {
         });
 
         // 4. Checks
-        // Recipient should have 20 NFT
         assertEq(IListing(listingAddr).balanceOf(recipient, 1), 20);
-
-        // Market owner (this contract) should receive 10 USDC
-        // Wait, market.createListing sets owner to caller (this).
-        // Market.purchase transfers USDC to listing owner.
-        // So this contract should have received 10 USDC back?
-        // We started with lots. It's hard to track exact balance without snapshots.
-
-        // Check event? Or balance change.
-        // We spent 100 USDC in swap.
-        // 10 USDC was diverted to purchase.
-        // 90 USDC was effectively swapped?
-        // Let's verify swapDelta.
-
-        // amount0 delta should be -amountIn.
-        // User pays 250 total via Router.
         assertEq(int256(swapDelta.amount0()), -int256(amountIn));
-
-        // The user PAID 250 USDC total.
-        // 200 went to Listing Owner (via Hook credit).
-        // 50 went to Pool.
-        // User should get Output of swapping 50 USDC.
     }
 
     function testPurchaseWithNonStableSwap() public {
@@ -186,53 +160,19 @@ contract PotatoHookTest is BaseTest, ERC1155Holder {
         address listingAddr = market.createListing(price, "uri", bytes32(0));
 
         // 2. Prepare purchase data
-        PotatoHook.PurchaseData memory data =
-            PotatoHook.PurchaseData({listingId: 1, quantity: 20, recipient: recipient});
+        PurchaseData memory data = PurchaseData({listingId: 1, quantity: 20, recipient: recipient});
 
         bytes memory hookData = abi.encode(data);
 
         // 3. Swap NonStable (currency1) -> Stable (currency0 = USDC)
-        // Need to fund user with currency1
         deal(Currency.unwrap(currency1), address(this), 1000 ether);
-
-        // Approve hook to spend currency1?
-        // No, in this case, the User calls Router. Router spends currency1.
-        // Hook intercepts USDC output.
-        // We approve Router naturally.
         IERC20(Currency.unwrap(currency1)).approve(address(swapRouter), type(uint256).max);
 
-        // Swap 1000 units of Currency1.
-        // Price is 1:1 initially.
-        // Input: 1000 Currency1.
-        // Output ~= 1000 USDC.
-        // Cost = 200 USDC.
-        // User should get ~800 USDC (plus slippage/fees etc).
-
-        uint256 amountIn = 1000 ether; // Large amount to ensure we get enough USDC
-        // Actually, currency1 decimal? Mock tokens usually 18 dec?
-        // USDC is 6 dec usually. But Mock might be 18.
-        // Let's check mock currency decimals.
-        // usually 18.
-        // If price is 1:1, 1000 ether of C1 -> 1000 ether of C0 (USDC).
-        // If "USDC" mock is 18 decimals, then 10e6 price (10 units) is TINY.
-        // Let's assume price=10e18 for this test or keep it.
-        // If price is 10e6 (10*10^6).
-        // If USDC mock has 18 decimals, 10e6 is 0.00000000001 USDC.
-        // Wait, setup:
-        // usdc = Currency.unwrap(currency0);
-        // vm.label(address(usdc), "USDC");
-        // Usually `deployCurrencyPair` creates MockERC20 which are 18 decimals.
-        // I should stick to typical "10e6" amounts if USDC is truly USDC-like, but if it's MockERC20(18), it's tiny.
-        // In previous test `testPurchaseDuringSwap`:
-        // uint128 price = 10e6; // 10 USDC
-        // uint256 amountIn = 250e6; // 250 USDC input
-        // So implicit assumption that 1e6 is the unit or relevant.
-        // If Mock is 18 dec, then 10e6 is just small amount.
-
+        uint256 amountIn = 1000 ether;
         bool zeroForOne = false; // Input=Currency1, Output=Currency0(USDC)
 
         BalanceDelta swapDelta = swapRouter.swapExactTokensForTokens({
-            amountIn: amountIn, // swap 1000 ether
+            amountIn: amountIn,
             amountOutMin: 0,
             zeroForOne: zeroForOne,
             poolKey: poolKey,
@@ -242,27 +182,51 @@ contract PotatoHookTest is BaseTest, ERC1155Holder {
         });
 
         // 4. Checks
-        // Recipient should have 20 NFT
+        assertEq(IListing(listingAddr).balanceOf(recipient, 1), 20);
+        assertEq(int256(swapDelta.amount1()), -int256(amountIn));
+        assertTrue(swapDelta.amount0() > 0);
+    }
+
+    function testPurchaseWithToken() public {
+        // 1. Create a listing
+        uint128 price = 10e6; // 10 USDC
+        address listingAddr = market.createListing(price, "uri", bytes32(0));
+
+        // 2. Fund user with Currency1 (Input)
+        uint256 amountIn = 1000 ether;
+        deal(Currency.unwrap(currency1), address(this), amountIn);
+
+        // 3. Approve Market to spend User's tokens (Currency1)
+        IERC20(Currency.unwrap(currency1)).approve(address(market), amountIn);
+
+        // 4. Construct Path
+        PathKey[] memory path = new PathKey[](1);
+        path[0] = PathKey({
+            intermediateCurrency: currency0, // Output is USDC
+            fee: 3000,
+            tickSpacing: 60,
+            hooks: IHooks(hook),
+            hookData: "" // Market will fill this
+        });
+
+        // 5. Call purchaseWithToken
+        market.purchaseWithToken(
+            PurchaseData({listingId: 1, quantity: 20, recipient: recipient}),
+            RouterData({
+                router: address(swapRouter),
+                path: path,
+                amountIn: amountIn,
+                amountOutMin: 0,
+                deadline: block.timestamp + 1
+            }),
+            Currency.unwrap(currency1)
+        );
+
+        // 6. Verify Purchase
         assertEq(IListing(listingAddr).balanceOf(recipient, 1), 20);
 
-        // Check user balance of USDC (currency0)
-        // Should be roughly (1000 ether converted to USDC) - (200 USDC cost)
-        // Since 1:1 price and Liquidity is Huge, we expect close to 1:1.
-        // But decimals might match.
-        // If both 18 decimals:
-        // Input 1000e18. Output ~1000e18.
-        // Cost 200e6 (tiny).
-        // User gets ~1000e18.
-        // Let's set price to something significant if we want to test limits?
-        // Or just trust 200 is deducted.
-
-        // Assert delta1 (input) is -1000e18
-        assertEq(int256(swapDelta.amount1()), -int256(amountIn));
-
-        // Assert delta0 (output) is roughly +1000e18 - 200e6?
-        // Wait, if hook takes 200e6.
-        // Delta returned by swap is what Router sees.
-        // Router sees (Output - Cost).
-        // So delta0 should be positive (User receives).
+        // Verify User received change (some USDC)
+        uint256 balanceUSDC = IERC20(usdc).balanceOf(recipient);
+        assertTrue(balanceUSDC > 0);
     }
 }
