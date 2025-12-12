@@ -16,3 +16,4 @@
 [submodule "lib/fhenix-contracts"]
 	path = lib/fhenix-contracts
 	url = https://github.com/FhenixProtocol/fhenix-contracts
+	branch = main
