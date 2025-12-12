@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Test, console2} from "forge-std/Test.sol";
-
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {IPoolManager} from "@uniswap/v4-core/src/interfaces/IPoolManager.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
@@ -228,5 +226,58 @@ contract PotatoHookTest is BaseTest, ERC1155Holder {
         // Verify User received change (some USDC)
         uint256 balanceUSDC = IERC20(usdc).balanceOf(recipient);
         assertTrue(balanceUSDC > 0);
+    }
+
+    function testPurchaseFailInsufficientOutput() public {
+        uint128 price = 1000e6; // 1000 USDC (expensive)
+        market.createListing(price, "uri", bytes32(0));
+
+        PurchaseData memory data = PurchaseData({listingId: 1, quantity: 1, recipient: recipient});
+        bytes memory hookData = abi.encode(data);
+
+        // Swap small amount of currency1 -> USDC, not enough to cover 1000 USDC
+        uint256 amountIn = 100; // tiny
+
+        vm.prank(recipient);
+        deal(Currency.unwrap(currency1), recipient, amountIn);
+        IERC20(Currency.unwrap(currency1)).approve(address(hook), type(uint256).max);
+        IERC20(Currency.unwrap(currency1)).approve(address(swapRouter), type(uint256).max);
+
+        // Expect revert due to insufficient funds in hook logic
+        vm.expectRevert();
+        swapRouter.swapExactTokensForTokens({
+            amountIn: amountIn,
+            amountOutMin: 0,
+            zeroForOne: false,
+            poolKey: poolKey,
+            hookData: hookData,
+            receiver: address(this),
+            deadline: block.timestamp + 1
+        });
+    }
+
+    function testPurchaseFailInvalidListing() public {
+        PurchaseData memory data = PurchaseData({listingId: 999, quantity: 1, recipient: recipient});
+        bytes memory hookData = abi.encode(data);
+
+        uint256 amountIn = 250e6;
+        deal(usdc, recipient, 1000e6);
+        vm.prank(recipient);
+        IERC20(usdc).approve(address(hook), type(uint256).max);
+        IERC20(usdc).approve(address(swapRouter), type(uint256).max);
+
+        // Should NOT revert, but just skip purchase because listing doesn't exist (price=0)
+        BalanceDelta delta = swapRouter.swapExactTokensForTokens({
+            amountIn: amountIn,
+            amountOutMin: 0,
+            zeroForOne: true,
+            poolKey: poolKey,
+            hookData: hookData,
+            receiver: address(this),
+            deadline: block.timestamp + 1
+        });
+
+        // Assert swap happened
+        assertEq(int256(delta.amount0()), -int256(amountIn));
     }
 }
